@@ -1092,7 +1092,7 @@ const LoginPage = ({ onLogin, onNavigate, supabase }) => {
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
           <div style={{ fontSize: "48px", marginBottom: "12px" }}>🔐</div>
           <h1 style={{ color: COLORS.white, fontSize: "32px", fontWeight: 800, letterSpacing: "-1px" }}>
-            {mode === "login" ? "Welcome back" : "Create account"}
+            {loading ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
           </h1>
           <p style={{ color: COLORS.gray500, marginTop: "8px" }}>
             {mode === "login" ? "Sign in to your NexStore account" : "Join thousands of happy shoppers"}
