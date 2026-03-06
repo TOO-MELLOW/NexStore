@@ -1,10 +1,23 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// ============================================================
+// SUPABASE CLIENT
+// ============================================================
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
-)
+);
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+// ============================================================
+// SUPABASE CLIENT — connects to your real database
+// ============================================================
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
+
 // ============================================================
 // DESIGN SYSTEM — Deep Navy + Electric Amber, Editorial luxury
 // ============================================================
@@ -1596,6 +1609,84 @@ export default function App() {
   const [wishlist, setWishlist] = useState([]);
   const [user, setUser] = useState(null);
   const [toast, setToast] = useState(null);
+  const [dbProducts, setDbProducts] = useState([]);
+  const [dbOrders, setDbOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load products from Supabase on startup
+  useEffect(() => {
+    async function loadProducts() {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .order('id');
+        if (error) throw error;
+        const mapped = (data || []).map(p => ({
+          id: p.id,
+          name: p.name,
+          category: p.category,
+          price: p.price,
+          originalPrice: p.original_price || p.price,
+          rating: p.rating || 4.8,
+          reviews: p.reviews || 0,
+          stock: p.stock || 10,
+          badge: p.badge || null,
+          image: p.image || "📦",
+          description: p.description || "",
+          specs: p.specs || [],
+        }));
+        if (mapped.length > 0) setDbProducts(mapped);
+      } catch (err) {
+        console.log("Using demo products:", err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadProducts();
+  }, []);
+
+  // Check for existing Supabase login session
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser({
+          name: session.user.user_metadata?.full_name || session.user.email.split("@")[0],
+          email: session.user.email,
+          isAdmin: session.user.email.includes("admin"),
+          id: session.user.id,
+        });
+      }
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser({
+          name: session.user.user_metadata?.full_name || session.user.email.split("@")[0],
+          email: session.user.email,
+          isAdmin: session.user.email.includes("admin"),
+          id: session.user.id,
+        });
+      } else {
+        setUser(null);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Load real orders when user logs in
+  useEffect(() => {
+    if (!user?.email) return;
+    supabase
+      .from('orders')
+      .select('*')
+      .eq('user_email', user.email)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { if (data && data.length > 0) setDbOrders(data); });
+  }, [user]);
+
+  // Use real data if available, otherwise fall back to demo data
+  const activeProducts = dbProducts.length > 0 ? dbProducts : PRODUCTS;
+  const activeOrders = dbOrders.length > 0 ? dbOrders : ORDERS;
 
   const showToast = useCallback((message, type = "success") => {
     setToast({ message, type });
@@ -1630,27 +1721,62 @@ export default function App() {
     });
   }, [showToast]);
 
-  const placeOrder = useCallback(() => {
+  // Save real order to Supabase on checkout
+  const placeOrder = useCallback(async () => {
+    try {
+      const total = cart.reduce((s, i) => s + i.price * i.qty, 0) * 1.08;
+      await supabase.from('orders').insert({
+        user_email: user?.email || 'guest@nexstore.com',
+        user_id: user?.id || null,
+        items: cart,
+        total: parseFloat(total.toFixed(2)),
+        status: 'processing',
+      });
+      if (user?.email) {
+        const { data } = await supabase.from('orders').select('*').eq('user_email', user.email).order('created_at', { ascending: false });
+        if (data) setDbOrders(data);
+      }
+    } catch (err) {
+      console.log("Order save error:", err.message);
+    }
     setCart([]);
     navigate("confirm");
     showToast("Order placed successfully! 🎉");
+  }, [cart, user, navigate, showToast]);
+
+  // Real logout via Supabase
+  const handleLogout = useCallback(async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    navigate("home");
+    showToast("Signed out successfully");
   }, [navigate, showToast]);
 
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
 
+  if (loading) {
+    return (
+      <div style={{ background: COLORS.navy, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "16px" }}>
+        <div style={{ fontSize: "48px" }}>🛍️</div>
+        <div style={{ color: COLORS.amber, fontWeight: 700, fontSize: "18px" }}>Loading NexStore...</div>
+        <div style={{ color: COLORS.gray500, fontSize: "14px" }}>Connecting to database</div>
+      </div>
+    );
+  }
+
   const renderPage = () => {
-    const commonProps = { onNavigate: navigate, onAddToCart: addToCart, wishlist, onWishlist: toggleWishlist };
+    const commonProps = { onNavigate: navigate, onAddToCart: addToCart, wishlist, onWishlist: toggleWishlist, products: activeProducts };
     switch (page) {
       case "home": return <HomePage {...commonProps} />;
       case "products": return <ProductsPage {...commonProps} initCategory={pageData?.category || "All"} initSearch={pageData?.search || ""} />;
       case "product": return pageData ? <ProductDetailPage product={pageData} {...commonProps} /> : null;
       case "cart": return <CartPage cart={cart} onUpdateCart={updateCart} onRemove={id => setCart(c => c.filter(i => i.id !== id))} onNavigate={navigate} />;
       case "checkout": return <CheckoutPage cart={cart} onPlaceOrder={placeOrder} onNavigate={navigate} />;
-      case "login": return <LoginPage onLogin={(u) => { setUser(u); navigate("dashboard"); showToast(`Welcome back, ${u.name}!`); }} onNavigate={navigate} />;
-      case "dashboard": return user ? <DashboardPage user={user} onNavigate={navigate} /> : <LoginPage onLogin={(u) => { setUser(u); navigate("dashboard"); }} onNavigate={navigate} />;
-      case "orders": return <OrdersPage />;
+      case "login": return <LoginPage onLogin={(u) => { setUser(u); navigate("dashboard"); showToast(`Welcome back, ${u.name}!`); }} onNavigate={navigate} supabase={supabase} />;
+      case "dashboard": return user ? <DashboardPage user={user} onNavigate={navigate} orders={activeOrders} /> : <LoginPage onLogin={(u) => { setUser(u); navigate("dashboard"); }} onNavigate={navigate} supabase={supabase} />;
+      case "orders": return <OrdersPage orders={activeOrders} />;
       case "wishlist": return <WishlistPage {...commonProps} />;
-      case "admin": return <AdminPage user={user} />;
+      case "admin": return <AdminPage user={user} products={activeProducts} supabase={supabase} />;
       case "confirm": return <OrderConfirmPage onNavigate={navigate} />;
       case "about": return <AboutPage />;
       case "contact": return <ContactPage />;
@@ -1667,7 +1793,7 @@ export default function App() {
         ::-webkit-scrollbar-thumb { background: ${COLORS.slate}; border-radius: 3px; }
         @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
       `}</style>
-      <Nav page={page} onNavigate={navigate} cartCount={cartCount} user={user} onLogout={() => { setUser(null); navigate("home"); showToast("Signed out successfully"); }} />
+      <Nav page={page} onNavigate={navigate} cartCount={cartCount} user={user} onLogout={handleLogout} />
       <main style={{ minHeight: "calc(100vh - 64px)" }}>
         {renderPage()}
       </main>
