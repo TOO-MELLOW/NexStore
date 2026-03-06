@@ -1036,7 +1036,6 @@ const CheckoutPage = ({ cart, onPlaceOrder, onNavigate }) => {
 };
 
 // LOGIN PAGE
-const LoginPage = ({ onLogin, onNavigate }) => {
 const LoginPage = ({ onLogin, onNavigate, supabase }) => {
   const [mode, setMode] = useState("login");
   const [form, setForm] = useState({ name: "", email: "", password: "" });
@@ -1044,13 +1043,18 @@ const LoginPage = ({ onLogin, onNavigate, supabase }) => {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
-    if (!form.email || !form.password) return;
     setError("");
+    if (!form.email || !form.password) {
+      setError("Please enter your email and password.");
+      return;
+    }
+    if (form.password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
     setLoading(true);
-
     try {
       if (mode === "login") {
-        // Real Supabase login
         const { data, error } = await supabase.auth.signInWithPassword({
           email: form.email,
           password: form.password,
@@ -1063,17 +1067,19 @@ const LoginPage = ({ onLogin, onNavigate, supabase }) => {
           id: data.user.id,
         });
       } else {
-        // Real Supabase signup
+        if (!form.name) {
+          setError("Please enter your full name.");
+          setLoading(false);
+          return;
+        }
         const { data, error } = await supabase.auth.signUp({
           email: form.email,
           password: form.password,
-          options: {
-            data: { full_name: form.name }
-          }
+          options: { data: { full_name: form.name } }
         });
         if (error) throw error;
         onLogin({
-          name: form.name || form.email.split("@")[0],
+          name: form.name,
           email: data.user.email,
           isAdmin: false,
           id: data.user.id,
@@ -1092,7 +1098,7 @@ const LoginPage = ({ onLogin, onNavigate, supabase }) => {
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
           <div style={{ fontSize: "48px", marginBottom: "12px" }}>🔐</div>
           <h1 style={{ color: COLORS.white, fontSize: "32px", fontWeight: 800, letterSpacing: "-1px" }}>
-            {loading ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
+            {mode === "login" ? "Welcome back" : "Create account"}
           </h1>
           <p style={{ color: COLORS.gray500, marginTop: "8px" }}>
             {mode === "login" ? "Sign in to your NexStore account" : "Join thousands of happy shoppers"}
@@ -1100,16 +1106,56 @@ const LoginPage = ({ onLogin, onNavigate, supabase }) => {
         </div>
 
         <div style={{ background: COLORS.navyMid, border: `1px solid ${COLORS.slate}`, borderRadius: "20px", padding: "32px" }}>
-          {mode === "register" && <Input label="Full Name" value={form.name} onChange={v => setForm({ ...form, name: v })} placeholder="John Doe" />}
-          <Input label="Email" type="email" value={form.email} onChange={v => setForm({ ...form, email: v })} placeholder="you@example.com" />
-          <Input label="Password" type="password" value={form.password} onChange={v => setForm({ ...form, password: v })} placeholder="••••••••" />
+          {mode === "register" && (
+            <Input
+              label="Full Name"
+              value={form.name}
+              onChange={v => setForm({ ...form, name: v })}
+              placeholder="John Doe"
+            />
+          )}
+          <Input
+            label="Email"
+            type="email"
+            value={form.email}
+            onChange={v => setForm({ ...form, email: v })}
+            placeholder="you@example.com"
+          />
+          <Input
+            label="Password"
+            type="password"
+            value={form.password}
+            onChange={v => setForm({ ...form, password: v })}
+            placeholder="Min. 6 characters"
+          />
+
           {mode === "login" && (
             <div style={{ textAlign: "right", marginTop: "-10px", marginBottom: "16px" }}>
-              <span style={{ color: COLORS.amber, fontSize: "13px", cursor: "pointer" }}>Forgot password?</span>
+              <span style={{ color: COLORS.amber, fontSize: "13px", cursor: "pointer" }}>
+                Forgot password?
+              </span>
             </div>
           )}
-          <Btn size="lg" onClick={handleSubmit} style={{ width: "100%", marginBottom: "12px" }}>
-            {mode === "login" ? "Sign In" : "Create Account"}
+
+          {error && (
+            <div style={{
+              background: "rgba(239,68,68,0.1)",
+              border: `1px solid ${COLORS.red}`,
+              borderRadius: "10px", padding: "12px 16px", marginBottom: "16px"
+            }}>
+              <p style={{ color: COLORS.red, fontSize: "13px", margin: 0, textAlign: "center" }}>
+                ⚠️ {error}
+              </p>
+            </div>
+          )}
+
+          <Btn
+            size="lg"
+            onClick={handleSubmit}
+            disabled={loading}
+            style={{ width: "100%", marginBottom: "12px" }}
+          >
+            {loading ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
           </Btn>
 
           <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
@@ -1118,33 +1164,25 @@ const LoginPage = ({ onLogin, onNavigate, supabase }) => {
             <div style={{ flex: 1, height: "1px", background: COLORS.slate }} />
           </div>
 
-          <Btn variant="secondary" size="lg" onClick={async () => {
-  const { error } = await supabase.auth.signInWithOAuth({ provider: 'apple' });
-  if (error) setError(error.message);
-}} style={{ width: "100%" }}>
-  🍎 Continue with Apple
-</Btn>
+          <Btn
+            variant="secondary"
+            size="lg"
+            onClick={() => setError("Apple login coming soon! Please use email for now.")}
+            style={{ width: "100%" }}
+          >
+            🍎 Continue with Apple
+          </Btn>
         </div>
 
         <p style={{ textAlign: "center", color: COLORS.gray500, marginTop: "20px", fontSize: "14px" }}>
           {mode === "login" ? "Don't have an account? " : "Already have an account? "}
-          <span style={{ color: COLORS.amber, cursor: "pointer" }} onClick={() => setMode(mode === "login" ? "register" : "login")}>
+          <span
+            style={{ color: COLORS.amber, cursor: "pointer" }}
+            onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); }}
+          >
             {mode === "login" ? "Sign up" : "Sign in"}
           </span>
         </p>
-
-        {error && (
-          <div style={{ background: "rgba(239,68,68,0.1)", border: `1px solid ${COLORS.red}`, borderRadius: "10px", padding: "12px 16px", marginTop: "16px" }}>
-            <p style={{ color: COLORS.red, fontSize: "13px", margin: 0, textAlign: "center" }}>
-              ⚠️ {error}
-            </p>
-          </div>
-        )}
-        <div style={{ background: COLORS.navyMid, border: `1px solid ${COLORS.amber}22`, borderRadius: "10px", padding: "12px 16px", marginTop: "16px" }}>
-          <p style={{ color: COLORS.gray500, fontSize: "12px", margin: 0, textAlign: "center" }}>
-            💡 Create a real account or sign in with your email
-          </p>
-        </div>
       </div>
     </div>
   );
