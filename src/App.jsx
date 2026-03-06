@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+)
 // ============================================================
 // DESIGN SYSTEM — Deep Navy + Electric Amber, Editorial luxury
 // ============================================================
