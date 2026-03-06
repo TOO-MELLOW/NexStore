@@ -2,15 +2,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // ============================================================
-// SUPABASE CLIENT
-// ============================================================
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-// ============================================================
 // SUPABASE CLIENT — connects to your real database
 // ============================================================
 const supabase = createClient(
