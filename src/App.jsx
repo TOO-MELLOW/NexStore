@@ -1118,9 +1118,12 @@ const LoginPage = ({ onLogin, onNavigate, supabase }) => {
             <div style={{ flex: 1, height: "1px", background: COLORS.slate }} />
           </div>
 
-          <Btn variant="secondary" size="lg" onClick={handleSubmit} style={{ width: "100%" }}>
-            🍎 Continue with Apple
-          </Btn>
+          <Btn variant="secondary" size="lg" onClick={async () => {
+  const { error } = await supabase.auth.signInWithOAuth({ provider: 'apple' });
+  if (error) setError(error.message);
+}} style={{ width: "100%" }}>
+  🍎 Continue with Apple
+</Btn>
         </div>
 
         <p style={{ textAlign: "center", color: COLORS.gray500, marginTop: "20px", fontSize: "14px" }}>
