@@ -1037,12 +1037,53 @@ const CheckoutPage = ({ cart, onPlaceOrder, onNavigate }) => {
 
 // LOGIN PAGE
 const LoginPage = ({ onLogin, onNavigate }) => {
+const LoginPage = ({ onLogin, onNavigate, supabase }) => {
   const [mode, setMode] = useState("login");
   const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.email || !form.password) return;
-    onLogin({ name: form.name || form.email.split("@")[0], email: form.email, isAdmin: form.email.includes("admin") });
+    setError("");
+    setLoading(true);
+
+    try {
+      if (mode === "login") {
+        // Real Supabase login
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: form.email,
+          password: form.password,
+        });
+        if (error) throw error;
+        onLogin({
+          name: data.user.user_metadata?.full_name || form.email.split("@")[0],
+          email: data.user.email,
+          isAdmin: data.user.email.includes("admin"),
+          id: data.user.id,
+        });
+      } else {
+        // Real Supabase signup
+        const { data, error } = await supabase.auth.signUp({
+          email: form.email,
+          password: form.password,
+          options: {
+            data: { full_name: form.name }
+          }
+        });
+        if (error) throw error;
+        onLogin({
+          name: form.name || form.email.split("@")[0],
+          email: data.user.email,
+          isAdmin: false,
+          id: data.user.id,
+        });
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -1089,9 +1130,16 @@ const LoginPage = ({ onLogin, onNavigate }) => {
           </span>
         </p>
 
+        {error && (
+          <div style={{ background: "rgba(239,68,68,0.1)", border: `1px solid ${COLORS.red}`, borderRadius: "10px", padding: "12px 16px", marginTop: "16px" }}>
+            <p style={{ color: COLORS.red, fontSize: "13px", margin: 0, textAlign: "center" }}>
+              ⚠️ {error}
+            </p>
+          </div>
+        )}
         <div style={{ background: COLORS.navyMid, border: `1px solid ${COLORS.amber}22`, borderRadius: "10px", padding: "12px 16px", marginTop: "16px" }}>
           <p style={{ color: COLORS.gray500, fontSize: "12px", margin: 0, textAlign: "center" }}>
-            💡 Demo: use <strong style={{ color: COLORS.amber }}>admin@test.com</strong> for admin access, or any email for regular user
+            💡 Create a real account or sign in with your email
           </p>
         </div>
       </div>
